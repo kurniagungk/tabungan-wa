@@ -1,20 +1,19 @@
 const { Client } = require('whatsapp-web.js');
+
 const fetch = require('node-fetch')
 const fs = require('fs');
 const express = require('express');
 const socketIo = require('socket.io');
 const http = require('http');
 const qrcode = require('qrcode');
+const { Status } = require('whatsapp-web.js/src/util/Constants');
 
 const app = express();
 const server = http.createServer(app);
-const io = socketIo(server);
+const io = socketIo(server)
 
-app.get('/', (req, res) => {
-    res.sendFile('index.html', {
-        root: __dirname
-    })
-})
+let ready = false;
+
 
 const SESSION_FILE_PATH = './session.json';
 let sessionCfg;
@@ -40,27 +39,25 @@ const client = new Client({
 });
 // You can use an existing session and avoid scanning a QR code by adding a "session" object to the client options.
 // This object must include WABrowserId, WASecretBundle, WAToken1 and WAToken2.
+let emit = null;
+
+io.on('connection', function (socket) {
+    emit = socket;
+    console.log('connection')
+    socket.emit('status', ready);
+
+});
+
 
 client.initialize();
 
-client.on('authenticated', (session) => {
-    console.log('AUTHENTICATED', session);
-    sessionCfg = session;
-    fs.writeFile(SESSION_FILE_PATH, JSON.stringify(session), function (err) {
-        if (err) {
-            console.error(err);
-        }
-    });
-});
 
-client.on('auth_failure', msg => {
-    console.error('AUTHENTICATION FAILURE', msg);
-    fs.unlinkSync(SESSION_FILE_PATH);
-});
 
-client.on('ready', () => {
-    console.log('READY');
-});
+
+server.listen(8000, function () {
+    console.log('runing 8000')
+})
+
 
 client.on('message', msg => {
 
@@ -77,14 +74,13 @@ client.on('message', msg => {
                 return response.json();
             })
             .then(data => {
-
                 if (data.status == 404) {
                     client.sendMessage(msg.from, 'No Hp tidak terdaftar');
                 } else {
-
                     client.sendMessage(msg.from, data.data);
-
                 }
+                if (emit)
+                    emit.emit('pesan', true);
             }).catch(function (error) {
                 client.sendMessage(msg.from, 'Server sedang tidak aktif');
                 console.log(error);
@@ -92,94 +88,52 @@ client.on('message', msg => {
     }
 });
 
-client.on('disconnected', (reason) => {
-    console.log('Client was logged out', reason);
-    fs.unlinkSync(SESSION_FILE_PATH);
+
+client.on('qr', (qr) => {
+    ready = false;
+    if (emit)
+        emit.emit('status', ready);
+    qrcode.toDataURL(qr, (err, url) => {
+        if (emit)
+            emit.emit('qr', url);
+    });
 });
 
-server.listen(8000, function () {
-    console.log('runing 8000')
-})
-
-io.on('connection', function (socket) {
-    socket.emit('message', 'Connecting...');
-
-    client.on('qr', (qr) => {
-        console.log('QR RECEIVED', qr);
-        qrcode.toDataURL(qr, (err, url) => {
-            socket.emit('qr', url);
-            socket.emit('message', 'QR Code received, scan please!');
-        });
-    });
-
-    client.on('ready', () => {
-        socket.emit('ready', 'Whatsapp is ready!');
-        socket.emit('message', 'Whatsapp is ready!');
-    });
+client.on('ready', () => {
+    ready = true;
+    if (emit)
+        emit.emit('ready', ready);
+});
 
 
-    client.on('message', msg => {
-
-
-        if (msg.body === "saldo") {
-
-            let no = msg.from;
-
-            fetch('http://tabungan.test/ceksaldo?no=' + no)
-                .then(response => {
-                    if (!response.ok) {
-                        throw Error(response.statusText);
-                    }
-                    return response.json();
-                })
-                .then(data => {
-
-                    if (data.status == 404) {
-                        client.sendMessage(msg.from, 'No Hp tidak terdaftar');
-                        socket.emit('pesan', [
-                            msg.from,
-                            'gagal'
-
-                        ]);
-                    } else {
-                        client.sendMessage(msg.from, data.data);
-                        socket.emit('pesan', [
-                            msg.from,
-                            'berhasil'
-                        ]);
-                    }
-                }).catch(function (error) {
-                    client.sendMessage(msg.from, 'Server sedang tidak aktif');
-                    console.log(error);
-                });
+client.on('authenticated', (session) => {
+    ready = true;
+    if (emit)
+        emit.emit('status', ready);
+    sessionCfg = session;
+    fs.writeFile(SESSION_FILE_PATH, JSON.stringify(session), function (err) {
+        if (err) {
+            console.error(err);
         }
     });
-
-
-
-    client.on('authenticated', (session) => {
-        socket.emit('authenticated', 'Whatsapp is authenticated!');
-        socket.emit('message', 'Whatsapp is authenticated!');
-        console.log('AUTHENTICATED', session);
-        sessionCfg = session;
-        fs.writeFile(SESSION_FILE_PATH, JSON.stringify(session), function (err) {
-            if (err) {
-                console.error(err);
-            }
-        });
-    });
-
-    client.on('auth_failure', function (session) {
-        socket.emit('message', 'Auth failure, restarting...');
-    });
-
-    client.on('disconnected', (reason) => {
-        socket.emit('message', 'Whatsapp is disconnected!');
-        fs.unlinkSync(SESSION_FILE_PATH, function (err) {
-            if (err) return console.log(err);
-            console.log('Session file deleted!');
-        });
-        client.destroy();
-        client.initialize();
-    });
 });
+
+client.on('auth_failure', function (session) {
+    ready = false;
+    if (emit)
+        emit.emit('status', ready);
+    socket.emit('message', 'Auth failure, restarting...');
+    client.destroy();
+    client.initialize();
+});
+
+client.on('disconnected', (reason) => {
+    ready = false;
+    if (emit)
+        emit.emit('status', ready);
+    fs.unlinkSync(SESSION_FILE_PATH);
+    client.destroy();
+    client.initialize();
+});
+
+
