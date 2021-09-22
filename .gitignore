@@ -75,4 +75,5 @@ typings/
 # FuseBox cache
 .fusebox/
 session.json
+package-lock.json
 
