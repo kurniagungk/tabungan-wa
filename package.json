@@ -2,13 +2,11 @@
   "dependencies": {
     "express": "^4.17.1",
     "fetch": "^1.1.0",
-    "http": "^0.0.1-security",
     "qrcode": "^1.4.4",
     "socket.io": "^4.2.0",
     "whatsapp-web.js": "^1.14.0"
   },
   "scripts": {
-    "start": "node app.js",
-    "nodemon": "nodemon app.js --ignore session.json"
+    "start": "node app.js"
   }
 }

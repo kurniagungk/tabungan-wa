@@ -5,11 +5,13 @@ const fs = require('fs');
 const express = require('express');
 
 const qrcode = require('qrcode');
+const { url } = require('inspector');
 
 const PORT = process.env.PORT || 3000;
 const INDEX = '/index.html';
 
 let ready = false;
+let start = false;
 
 const server = express()
     .use((req, res) => res.sendFile(INDEX, { root: __dirname }))
@@ -50,8 +52,29 @@ let emit = null;
 
 io.on('connection', function (socket) {
     emit = socket;
+    socket.emit("status", ready);
     console.log('connection')
-    socket.emit('status', ready);
+    socket.on("start", (arg) => {
+        if (start)
+            client.destroy();
+        client.initialize();
+        start == true
+    });
+
+    socket.on("stop", (arg) => {
+        if (start)
+            client.destroy();
+        if (fs.existsSync(SESSION_FILE_PATH)) {
+            fs.unlinkSync(SESSION_FILE_PATH);
+        }
+        start == false
+    });
+    socket.on("disconnect", (reason) => {
+        if (!ready && start)
+            client.destroy();
+        console.log('disconnect');
+    });
+
 
 });
 
@@ -59,37 +82,39 @@ io.on('connection', function (socket) {
 
 
 
-client.initialize();
-
-
-
-
 client.on('message', msg => {
 
-    if (msg.body === "saldo") {
 
-        let no = msg.from;
 
-        fetch('http://tabungan.test/ceksaldo?no=' + no)
-            .then(response => {
-                if (!response.ok) {
-                    throw Error(response.statusText);
-                }
-                return response.json();
-            })
-            .then(data => {
-                if (data.status == 404) {
-                    client.sendMessage(msg.from, 'No Hp tidak terdaftar');
-                } else {
-                    client.sendMessage(msg.from, data.data);
-                }
-                if (emit)
-                    emit.emit('pesan', true);
-            }).catch(function (error) {
-                client.sendMessage(msg.from, 'Server sedang tidak aktif');
-                console.log(error);
-            });
-    }
+    let no = msg.from;
+
+    let url = 'http://tabungan.test/ceksaldo?no=' + no + '&pesan=' + msg.body + '&token=' + 'VGFidW5nYW4gQWxrYWhmaSBTb21hbGFuZ3U=';
+
+    fetch(url)
+        .then(response => {
+            if (!response.ok) {
+                throw Error(response.statusText);
+            }
+            return response.json();
+        })
+        .then(data => {
+
+            if (data.status == 401)
+                client.sendMessage(msg.from, 'Gagal Memuat Data');
+
+            if (data.status == 404)
+                client.sendMessage(msg.from, 'Pesan Tidak Benar');
+            if (data.status == 403)
+                client.sendMessage(msg.from, 'Nomer Tidak Terdaftar');
+            if (data.status == 200)
+                client.sendMessage(msg.from, data.data);
+            if (emit)
+                emit.emit('pesan', true);
+        }).catch(function (error) {
+            client.sendMessage(msg.from, 'Server sedang tidak aktif');
+            console.log(error);
+        });
+
 });
 
 
@@ -127,15 +152,19 @@ client.on('auth_failure', function (session) {
     socket.emit('message', 'Auth failure, restarting...');
     client.destroy();
     client.initialize();
+    start == true;
 });
 
 client.on('disconnected', (reason) => {
     ready = false;
     if (emit)
         emit.emit('status', ready);
-    fs.unlinkSync(SESSION_FILE_PATH);
+    if (fs.existsSync(SESSION_FILE_PATH)) {
+        fs.unlinkSync(SESSION_FILE_PATH);
+    }
     client.destroy();
     client.initialize();
+    start == true;
 });
 
 
