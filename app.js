@@ -12,6 +12,7 @@ const INDEX = '/index.html';
 
 let ready = false;
 let start = false;
+let emit = null;
 
 const server = express()
     .use((req, res) => res.sendFile(INDEX, { root: __dirname }))
@@ -27,6 +28,7 @@ const io = require("socket.io")(server, {
 
 const SESSION_FILE_PATH = './session.json';
 let sessionCfg;
+
 if (fs.existsSync(SESSION_FILE_PATH)) {
     sessionCfg = require(SESSION_FILE_PATH);
 }
@@ -42,23 +44,30 @@ const client = new Client({
             '--no-first-run',
             '--no-zygote',
             '--disable-gpu',
+            '--disable-extensions'
         ],
     },
-    ignoreDefaultArgs: ['--disable-extensions'],
     session: sessionCfg
 });
 // You can use an existing session and avoid scanning a QR code by adding a "session" object to the client options.
 // This object must include WABrowserId, WASecretBundle, WAToken1 and WAToken2.
-let emit = null;
+
+if (fs.existsSync(SESSION_FILE_PATH)) {
+    console.log('start whatapps');
+    client.initialize();
+    start == true;
+}
+
+
+
 
 io.on('connection', function (socket) {
     emit = socket;
     socket.emit("status", ready);
     console.log('connection')
     socket.on("start", (arg) => {
-        if (start)
-            client.destroy();
-        client.initialize();
+        if (!start)
+            client.initialize();
         start == true
     });
 
@@ -152,10 +161,13 @@ client.on('auth_failure', function (session) {
     ready = false;
     if (emit)
         emit.emit('status', ready);
-    socket.emit('message', 'Auth failure, restarting...');
+    if (fs.existsSync(SESSION_FILE_PATH)) {
+        fs.unlinkSync(SESSION_FILE_PATH);
+    }
     client.destroy();
-    client.initialize();
-    start == true;
+    start == false;
+    console.log('auth_failure')
+
 });
 
 client.on('disconnected', (reason) => {
@@ -166,8 +178,7 @@ client.on('disconnected', (reason) => {
         fs.unlinkSync(SESSION_FILE_PATH);
     }
     client.destroy();
-    client.initialize();
-    start == true;
+    start == false;
 });
 
 
