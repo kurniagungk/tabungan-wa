@@ -61,7 +61,6 @@ server.listen(process.env.PORT || 8080, function () {
 
 client.on('message', msg => {
 
-
     if (msg.body === "saldo") {
 
         let no = msg.from;
