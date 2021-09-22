@@ -51,6 +51,13 @@ io.on('connection', function (socket) {
 });
 
 
+app.get('/', (req, res) => {
+    res.sendFile('index.html', {
+        root: __dirname
+    });
+});
+
+
 client.initialize();
 
 
