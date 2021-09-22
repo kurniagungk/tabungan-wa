@@ -44,6 +44,7 @@ const client = new Client({
             '--disable-gpu',
         ],
     },
+    ignoreDefaultArgs: ['--disable-extensions'],
     session: sessionCfg
 });
 // You can use an existing session and avoid scanning a QR code by adding a "session" object to the client options.
@@ -127,6 +128,7 @@ client.on('qr', (qr) => {
 });
 
 client.on('ready', () => {
+    console.log('ready');
     ready = true;
     if (emit)
         emit.emit('ready', ready);
@@ -134,6 +136,7 @@ client.on('ready', () => {
 
 
 client.on('authenticated', (session) => {
+    console.log('authenticated');
     ready = true;
     if (emit)
         emit.emit('status', ready);
