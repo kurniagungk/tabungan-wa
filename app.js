@@ -14,6 +14,8 @@ const io = socketIo(server)
 
 let ready = false;
 
+const port = process.env.PORT || 8000;
+
 
 const SESSION_FILE_PATH = './session.json';
 let sessionCfg;
@@ -54,8 +56,8 @@ client.initialize();
 
 
 
-server.listen(process.env.PORT || 8080, function () {
-    console.log('runing 8000')
+server.listen(port, function () {
+    console.log('App running on *: ' + port);
 })
 
 
