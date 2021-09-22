@@ -95,8 +95,6 @@ client.on('message', msg => {
 
 client.on('qr', (qr) => {
     ready = false;
-    if (emit)
-        emit.emit('status', ready);
     qrcode.toDataURL(qr, (err, url) => {
         if (emit)
             emit.emit('qr', url);
