@@ -1,20 +1,26 @@
 const { Client } = require('whatsapp-web.js');
-
 const fetch = require('node-fetch')
 const fs = require('fs');
-const express = require('express');
-const socketIo = require('socket.io');
-const http = require('http');
-const qrcode = require('qrcode');
-const { Status } = require('whatsapp-web.js/src/util/Constants');
 
-const app = express();
-const server = http.createServer(app);
-const io = socketIo(server)
+const express = require('express');
+
+const qrcode = require('qrcode');
+
+const PORT = process.env.PORT || 3000;
+const INDEX = '/index.html';
 
 let ready = false;
 
-const port = process.env.PORT || 8000;
+const server = express()
+    .use((req, res) => res.sendFile(INDEX, { root: __dirname }))
+    .listen(PORT, () => console.log(`Listening on ${PORT}`));
+
+const io = require("socket.io")(server, {
+    cors: {
+        origin: "*",
+        methods: ["GET", "POST"]
+    }
+});
 
 
 const SESSION_FILE_PATH = './session.json';
@@ -51,21 +57,12 @@ io.on('connection', function (socket) {
 });
 
 
-app.get('/', (req, res) => {
-    res.sendFile('index.html', {
-        root: __dirname
-    });
-});
+
 
 
 client.initialize();
 
 
-
-
-server.listen(port, function () {
-    console.log('App running on *: ' + port);
-})
 
 
 client.on('message', msg => {
