@@ -13,6 +13,7 @@ const INDEX = '/index.html';
 let ready = false;
 let start = false;
 let emit = null;
+let code = 0;
 
 const server = express()
     .use((req, res) => res.sendFile(INDEX, { root: __dirname }))
@@ -34,6 +35,7 @@ if (fs.existsSync(SESSION_FILE_PATH)) {
 }
 
 const client = new Client({
+    restartOnAuthFail: true,
     puppeteer: {
         headless: true,
         args: [
@@ -54,8 +56,9 @@ const client = new Client({
 
 if (fs.existsSync(SESSION_FILE_PATH)) {
     console.log('start whatapps');
-    client.initialize();
-    start == true;
+    client.initialize().catch(_ => _);
+    start = true;
+    ready = true;
 }
 
 
@@ -66,22 +69,31 @@ io.on('connection', function (socket) {
     socket.emit("status", ready);
     console.log('connection')
     socket.on("start", (arg) => {
+        console.log('start');
         if (!start)
-            client.initialize();
-        start == true
+            client.initialize().catch(_ => _);
+        start = true;
+        console.log(start)
     });
 
     socket.on("stop", (arg) => {
-        if (start)
+        console.log('stop');
+        if (start) {
+            client.logout();
             client.destroy();
+        }
         if (fs.existsSync(SESSION_FILE_PATH)) {
             fs.unlinkSync(SESSION_FILE_PATH);
         }
-        start == false
+        start = false
     });
     socket.on("disconnect", (reason) => {
-        if (!ready && start)
+        if (!ready && start) {
+            console.log('asd')
+            qr = 0;
             client.destroy();
+            start = null;
+        }
         console.log('disconnect');
     });
 
@@ -94,7 +106,7 @@ io.on('connection', function (socket) {
 
 client.on('message', msg => {
 
-
+    console.log('message');
 
     let no = msg.from;
 
@@ -129,11 +141,20 @@ client.on('message', msg => {
 
 
 client.on('qr', (qr) => {
-    ready = false;
+
+    console.log('qr');
     qrcode.toDataURL(qr, (err, url) => {
         if (emit)
             emit.emit('qr', url);
     });
+    code++;
+    if (code == 5) {
+        ready = false;
+        console.log(code)
+        code = 0;
+        emit.emit('status', ready);
+        client.destroy();
+    }
 });
 
 client.on('ready', () => {
@@ -158,27 +179,27 @@ client.on('authenticated', (session) => {
 });
 
 client.on('auth_failure', function (session) {
+    console.log('auth_failure')
     ready = false;
     if (emit)
         emit.emit('status', ready);
     if (fs.existsSync(SESSION_FILE_PATH)) {
         fs.unlinkSync(SESSION_FILE_PATH);
     }
-    client.destroy();
-    start == false;
-    console.log('auth_failure')
-
+    start = true;
 });
 
 client.on('disconnected', (reason) => {
+    console.log('wa disconnected');
     ready = false;
     if (emit)
         emit.emit('status', ready);
     if (fs.existsSync(SESSION_FILE_PATH)) {
         fs.unlinkSync(SESSION_FILE_PATH);
     }
+    code = 0;
     client.destroy();
-    start == false;
+    start = false;
 });
 
 
