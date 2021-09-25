@@ -8,6 +8,7 @@ const qrcode = require('qrcode');
 const { url } = require('inspector');
 
 const PORT = process.env.PORT || 3000;
+const TABUNGAN = process.env.TABUNGAN || "http://tabungan.test";
 const INDEX = '/index.html';
 
 let ready = false;
@@ -110,9 +111,9 @@ client.on('message', msg => {
 
     let no = msg.from;
 
-    let url = 'http://tabungan.test/ceksaldo?no=' + no + '&pesan=' + msg.body + '&token=' + 'VGFidW5nYW4gQWxrYWhmaSBTb21hbGFuZ3U=';
+    let web = TABUNGAN +'/ceksaldo?no=' + no + '&pesan=' + msg.body + '&token=' + 'VGFidW5nYW4gQWxrYWhmaSBTb21hbGFuZ3U=';
 
-    fetch(url)
+    fetch(web)
         .then(response => {
             if (!response.ok) {
                 throw Error(response.statusText);
