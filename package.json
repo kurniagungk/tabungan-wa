@@ -2,6 +2,7 @@
   "dependencies": {
     "express": "^4.17.1",
     "fetch": "^1.1.0",
+    "pg": "^8.7.1",
     "qrcode": "^1.4.4",
     "socket.io": "^4.2.0",
     "whatsapp-web.js": "^1.14.0"
