@@ -1,11 +1,26 @@
 const { Client } = require('pg');
 
-const client = new Client({
-    connectionString: process.env.DATABASE_URL || 'postgres://uixgnumnpjhdpa:c1dd0d6f72184c8a74124d551783f6028118299a5b2e6d91de49e99c41813514@ec2-34-233-187-36.compute-1.amazonaws.com:5432/dfm37n3sdb1j85',
-    ssl: {
-        rejectUnauthorized: false
-    }
-});
+let client
+
+
+if (process.env.DATABASE_URL) {
+    client = new Client({
+        connectionString: process.env.DATABASE_URL || 'postgresql://localhost:5432',
+        ssl: {
+            rejectUnauthorized: false
+        }
+    });
+} else {
+
+    client = new Client({
+        user: 'postgres',
+        host: 'localhost',
+        database: 'tabungan_wa',
+        port: 5432,
+    })
+
+}
+
 
 client.connect();
 

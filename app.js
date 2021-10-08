@@ -1,32 +1,43 @@
-const { Client } = require('whatsapp-web.js');
+const { Client, Buttons } = require('whatsapp-web.js');
 const fetch = require('node-fetch')
-const fs = require('fs');
 const db = require('./db.js');
-
 const express = require('express');
-
 const qrcode = require('qrcode');
-const { url } = require('inspector');
+const { body, validationResult } = require('express-validator');
+const bodyParser = require('body-parser')
+const app = express();
+const http = require('http');
+const server = http.createServer(app);
+const { Server } = require("socket.io");
+const https = require("https");
+const agent = new https.Agent({
+    rejectUnauthorized: false
+})
+const io = new Server(server, {
+    cors: {
+        origin: "*",
+        methods: ["GET", "POST"]
+    }
+});
+
 
 const PORT = process.env.PORT || 3000;
 const INDEX = '/index.html';
+const TABUNGAN = process.env.URL || 'https://tabungan.test';
 
 let ready = false;
 let start = false;
 let emit = null;
 let code = 0;
 
+app.use(bodyParser.urlencoded({ extended: false }));
+app.use(bodyParser.json());
+
+
 (async () => {
 
-    const server = express()
-        .use((req, res) => res.sendFile(INDEX, { root: __dirname }))
-        .listen(PORT, () => console.log(`Listening on ${PORT}`));
-
-    const io = require("socket.io")(server, {
-        cors: {
-            origin: "*",
-            methods: ["GET", "POST"]
-        }
+    app.get('/', (req, res) => {
+        res.sendFile(INDEX, { root: __dirname })
     });
 
     const dbSesion = await db.readsession()
@@ -52,11 +63,57 @@ let code = 0;
     // This object must include WABrowserId, WASecretBundle, WAToken1 and WAToken2.
 
     if (dbSesion) {
-        console.log('start whatapps');
+        console.log('start whatapps sesion');
         client.initialize().catch(_ => _);
         start = true;
     }
 
+    const checkRegisteredNumber = async function (number) {
+        const isRegistered = await client.isRegisteredUser(number);
+        return isRegistered;
+    }
+
+    app.post('/send', [
+        body('token').notEmpty(),
+        body('no').notEmpty(),
+        body('pesan').notEmpty(),
+    ], async (req, res) => {
+        let token = req.body.token
+        let no = req.body.no
+        let pesan = req.body.pesan
+
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({ errors: errors.array() });
+        }
+
+        if (token != "VGFidW5nYW4gQWxrYWhmaSBTb21hbGFuZ3U=") {
+            return res.sendStatus(403);
+        }
+
+        if (!ready)
+            return res.status(422).json({
+                status: false,
+                message: 'Whatapps Not Login'
+            });
+
+
+        const isRegisteredNumber = await checkRegisteredNumber(no + '@c.us');
+
+        if (!isRegisteredNumber) {
+            return res.status(422).json({
+                status: false,
+                message: 'The number is not registered'
+            });
+        }
+
+        client.sendMessage(no + '@c.us', pesan);
+
+        res.status(200).json({
+            status: true,
+            message: 'Berhasil'
+        });
+    });
 
     io.on('connection', function (socket) {
         emit = socket;
@@ -93,15 +150,24 @@ let code = 0;
 
 
 
-    client.on('message', msg => {
+    client.on('message', async msg => {
+
+
+        if (msg.isStatus)
+            return 0;
+
+        let chat = await msg.getChat();
+
+        if (chat.isGroup)
+            return 0;
 
         console.log('message');
 
         let no = msg.from;
 
-        let url = 'http://tabungan.test/ceksaldo?no=' + no + '&pesan=' + msg.body + '&token=' + 'VGFidW5nYW4gQWxrYWhmaSBTb21hbGFuZ3U=';
+        let url = TABUNGAN + '/ceksaldo?no=' + no + '&pesan=' + msg.body + '&token=' + 'VGFidW5nYW4gQWxrYWhmaSBTb21hbGFuZ3U=';
 
-        fetch(url)
+        fetch(url, { agent })
             .then(response => {
                 if (!response.ok) {
                     throw Error(response.statusText);
@@ -141,7 +207,8 @@ let code = 0;
             ready = false;
             console.log(code)
             code = 0;
-            emit.emit('status', ready);
+            if (emit)
+                emit.emit('status', ready);
             client.destroy();
             start = false
         }
@@ -186,3 +253,7 @@ let code = 0;
 
 
 })();
+
+server.listen(3000, () => {
+    console.log('listening on *:3000');
+});
